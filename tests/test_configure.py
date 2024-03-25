@@ -1,6 +1,9 @@
 import datetime
 import sys
 from unittest import mock
+
+import pytest
+
 import freezegun
 import freezegun.config
 
@@ -110,15 +113,49 @@ def test_extend_default_ignore_list_duplicate_items():
 FROZEN_DATETIME = datetime.datetime(2020, 2, 29, 0, 0, 0, tzinfo=datetime.timezone.utc)
 current = datetime.datetime.now(datetime.timezone.utc)
 
-def test_fakedatetime_is_ignored():
+@pytest.fixture
+def fixture_fake_module_ignored():
+    """Fixture yielding time by ignoring the module"""
     from . import another_module
+    with freezegun.freeze_time(FROZEN_DATETIME, ignore=["tests.another_module"]) as freezer:
+        assert another_module.get_fake_gmtime()().tm_year == current.year
+        assert another_module.get_fake_datetime().now().year == current.year
+        yield freezer
+        assert another_module.get_fake_gmtime()().tm_year == current.year
+        assert another_module.get_fake_datetime().now().year == current.year
+    if "tests.another_module" in sys.modules:
+        del sys.modules["tests.another_module"]
 
-    with freezegun.freeze_time(FROZEN_DATETIME):
-        assert another_module.gmtime().tm_year == FROZEN_DATETIME.year
-        assert another_module.FakeDatetime.now().year == FROZEN_DATETIME.year
 
-    with freezegun.freeze_time(FROZEN_DATETIME, ignore=["tests.another_module"]):
-        assert another_module.gmtime().tm_year == current.year
-        assert another_module.FakeDatetime.now().year == current.year
+def test_fixture_fake_module_ignored(fixture_fake_module_ignored):
+    from . import another_module
+    assert another_module.get_fake_gmtime()().tm_year == current.year
+    assert another_module.get_fake_datetime().year == current.year
+    if "tests.another_module" in sys.modules:
+        del sys.modules["tests.another_module"]
 
-    del sys.modules["tests.another_module"]
+
+@pytest.fixture
+def fixture_fake_module_not_ignored():
+    """Fixture yielding time without ignoring the module"""
+    from . import another_module
+    with freezegun.freeze_time(FROZEN_DATETIME) as freezer:
+        assert another_module.get_fake_gmtime()().tm_year == FROZEN_DATETIME.year
+        assert another_module.get_fake_datetime().now().year == FROZEN_DATETIME.year
+        yield freezer
+        assert another_module.get_fake_gmtime()().tm_year == FROZEN_DATETIME.year
+        assert another_module.get_fake_datetime().now().year == FROZEN_DATETIME.year
+    if "tests.another_module" in sys.modules:
+        del sys.modules["tests.another_module"]
+
+
+def test_fakedatetime_is_not_ignored(fixture_fake_module_not_ignored):
+    from . import another_module
+    assert another_module.gmtime().tm_year == FROZEN_DATETIME.year
+    assert another_module.datetime.now().year == FROZEN_DATETIME.year
+    if "tests.another_module" in sys.modules:
+        del sys.modules["tests.another_module"]
+
+
+
+
