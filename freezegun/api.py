@@ -141,7 +141,7 @@ _is_cpython = (
 )
 
 
-call_stack_inspection_limit = 5
+call_stack_inspection_limit = 10
 
 
 def _should_use_real_time():
@@ -159,8 +159,21 @@ def _should_use_real_time():
 
     for _ in range(call_stack_inspection_limit):
         module_name = frame.f_globals.get('__name__')
-        if module_name and module_name.startswith(ignore_lists[-1]):
+        global_name_cond = module_name and module_name.startswith(ignore_lists[-1])
+        if global_name_cond:
+            # if module name found in the ignore list
             return True
+
+        if module_name:
+            # In case we locally imported a module we ignored
+            # stop after call_stack_inspection_limit
+            local_modules_index = 0
+            for local in iter(local.__name__ for local in frame.f_locals.values() if type(local).__name__ == "module"):
+                if local.startswith(ignore_lists[-1]):
+                    return True
+                local_modules_index += 1
+                if local_modules_index >= call_stack_inspection_limit:
+                    break
 
         frame = frame.f_back
         if frame is None:
@@ -388,6 +401,8 @@ class FakeDatetime(real_datetime, FakeDate, metaclass=FakeDatetimeMeta):
     @classmethod
     def now(cls, tz=None):
         now = cls._time_to_freeze() or real_datetime.now()
+        if _should_use_real_time():
+            now = real_datetime.now()
         if tz:
             result = tz.fromutc(now.replace(tzinfo=tz)) + cls._tz_offset()
         else:
@@ -412,6 +427,8 @@ class FakeDatetime(real_datetime, FakeDate, metaclass=FakeDatetimeMeta):
     @classmethod
     def utcnow(cls):
         result = cls._time_to_freeze() or real_datetime.now(datetime.timezone.utc)
+        if _should_use_real_time():
+            result = real_datetime.now(datetime.timezone.utc)
         return datetime_to_fakedatetime(result)
 
     @staticmethod

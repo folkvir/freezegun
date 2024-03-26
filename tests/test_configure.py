@@ -130,7 +130,7 @@ def fixture_fake_module_ignored():
 def test_fixture_fake_module_ignored(fixture_fake_module_ignored):
     from . import another_module
     assert another_module.get_fake_gmtime()().tm_year == current.year
-    assert another_module.get_fake_datetime().year == current.year
+    assert another_module.get_fake_datetime().now().year == current.year
     if "tests.another_module" in sys.modules:
         del sys.modules["tests.another_module"]
 
@@ -151,10 +151,11 @@ def fixture_fake_module_not_ignored():
 
 def test_fakedatetime_is_not_ignored(fixture_fake_module_not_ignored):
     from . import another_module
-    assert another_module.gmtime().tm_year == FROZEN_DATETIME.year
-    assert another_module.datetime.now().year == FROZEN_DATETIME.year
+    assert another_module.get_fake_gmtime()().tm_year == FROZEN_DATETIME.year
+    assert another_module.get_fake_datetime().now().year == FROZEN_DATETIME.year
     if "tests.another_module" in sys.modules:
         del sys.modules["tests.another_module"]
+
 
 
 
